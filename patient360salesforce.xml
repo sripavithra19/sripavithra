@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:api-gateway="http://www.mulesoft.org/schema/mule/api-gateway" xmlns:salesforce="http://www.mulesoft.org/schema/mule/salesforce"
+	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/salesforce http://www.mulesoft.org/schema/mule/salesforce/current/mule-salesforce.xsd
+http://www.mulesoft.org/schema/mule/api-gateway http://www.mulesoft.org/schema/mule/api-gateway/current/mule-api-gateway.xsd">
+	<http:listener-config name="HTTP_Listener_config" doc:name="HTTP Listener config" doc:id="87095e5c-4009-4376-a253-29eb48128c19" >
+		<http:listener-connection host="0.0.0.0" port="8081" />
+		<http:listener-interceptors >
+			<http:cors-interceptor allowCredentials="true" >
+				<http:origins >
+					<http:origin url="www.google.com" accessControlMaxAge="30000" />
+					<http:public-resource />
+				</http:origins>
+			</http:cors-interceptor>
+		</http:listener-interceptors>
+	</http:listener-config>
+	<salesforce:sfdc-config name="Salesforce_Config" doc:name="Salesforce Config" doc:id="c0768881-c67e-453a-a6ca-77e47f6b658e" >
+		<salesforce:basic-connection username="sripavithra@manogaran.com" password="Ciberspring26" securityToken="W4aQpWxGUatZJr9XricsQhlcp" />
+	</salesforce:sfdc-config>
+	<api-gateway:autodiscovery apiId="18651472" ignoreBasePath="true" doc:name="API Autodiscovery" doc:id="b894a75f-a6d5-4f36-bfe3-d40ba4c27cad" flowRef="patient360salesforceFlow" />
+	<flow name="patient360salesforceFlow" doc:id="c3aeffc9-ebb8-49da-862c-edbcc5a9c9a7" >
+		<http:listener doc:name="Listener" doc:id="88daaa73-a1cd-4421-b4b9-793e5a2e82e3" config-ref="HTTP_Listener_config" path="/patientsf"/>
+		<set-variable value="#[payload.pid]" doc:name="Set Variable" doc:id="2ad53fe1-59d4-41f8-af9d-55506469a438" variableName="pid"/>
+		<salesforce:query doc:name="Query" doc:id="7024abb6-58e6-4b99-a19e-093d4c2a5c3f" config-ref="Salesforce_Config">
+			<salesforce:salesforce-query ><![CDATA[SELECT Id, Name,p__c,P_name__c,P_age__c,P_phno__c,P_city__c FROM PatientAccount__c where p__c= :p__c]]></salesforce:salesforce-query>
+			<salesforce:parameters ><![CDATA[#[output application/json
+---
+{
+	p__c : vars.pid
+}]]]></salesforce:parameters>
+		</salesforce:query>
+		<ee:transform doc:name="Transform Message" doc:id="5421bf2d-9161-49f8-84f8-e825645690f4" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload
+]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<choice doc:name="Choice" doc:id="e688b817-ca50-4d04-b2b7-e19a6ea13d5f" >
+			<when expression='#[vars.pid as Number &gt; 100 and vars.pid as Number &lt; 106]'>
+				<ee:transform doc:name="Transform Message" doc:id="1889a721-786a-475d-a348-68152c3c7d57" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload map(item,index)->{
+	Id: item.Id,
+	P_id: item.p__c,
+	P_name: item.P_name__c,
+	P_age: item.P_age__c,
+	P_phno: item.P_phno__c,
+	P_city: item.P_city__c
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<ee:transform doc:name="Transform Message" doc:id="d4a937fa-e6c5-4181-a13d-866ff8a458aa" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</when>
+			<otherwise >
+				<ee:transform doc:name="Transform Message" doc:id="131e049e-131c-42b8-8a22-eb2afeec4cc3" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+"error":"patientId is wrong Please try again"]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<logger level="INFO" doc:name="Logger" doc:id="ce094ab1-a060-4450-8d7c-e3da7313220f" message="#[payload]" />
+			</otherwise>
+		</choice>
+	</flow>
+</mule>
